@@ -63,6 +63,27 @@ br = br%>%
 
 br$continent = 'America'
 
+# remove not reported or outside brazil
+br = br%>%
+  subset(!is.na(adm1))
+
+# convert adm1 to english
+names = read.csv('data/location_codes/conversions/brazil_adm1.csv')
+
+br = br%>%
+  rename(adm1_case = adm1)
+
+br = left_join(br, names)
+
+# check this is 0
+nas = br%>%
+  subset(is.na(adm1))%>%
+  select(c(adm1_case, adm1))%>%
+  distinct()
+
+br = br%>%
+  select(-c(adm1_case))
+  
 write.csv(br, 'data/human/processed/hanta/BR_hanta.csv', row.names = F)
 
 ### CHILE ###
@@ -106,6 +127,33 @@ nas = ch%>%
   distinct(adm3)
 
 ch$continent = 'America'
+
+# fix some naming issues
+ch = ch%>%
+  subset(adm1 != 'No se pudo determinar ')
+
+ch$adm1 = ifelse(ch$adm1 == 'SEREMI Del Maule', 'Región del Maule', ch$adm1)
+ch$adm1 = ifelse(ch$adm1 == 'SEREMI De Los Rios', 'Región de Los Ríos', ch$adm1)
+ch$adm1 = ifelse(ch$adm1 == 'SEREMI Del Nuble', 'Región del Ñuble', ch$adm1)
+ch$adm1 = ifelse(ch$adm1 == 'Región de la Araucanía', 'Región De La Araucania', ch$adm1)
+
+ch = read.csv('data/human/processed/hanta/CH_hanta.csv')
+
+ch=ch%>%select(-c(adm1))
+
+names = read.csv('data/location_codes/conversions/chile_adm1.csv')
+
+ch = ch%>%
+  rename(adm1_case=adm1)
+
+ch = left_join(ch, names)
+
+# check this is 0
+nas = ch%>%
+  subset(is.na(adm1))%>%
+  select(c(adm1_case, adm1))%>%
+  distinct()
+
 write.csv(ch, 'data/human/processed/hanta/CH_hanta.csv', row.names = F)
 
 #----- EUROPE ----- 
@@ -116,10 +164,10 @@ sw = sw%>%
   rename(adm1 = County.Regions, year = Year)
 sw$country = 'Sweden'
 sw = sw%>%
-  pivot_longer(January:December, names_to = "month", values_to = "num_cases")
+  tidyr::pivot_longer(January:December, names_to = "month", values_to = "num_cases")
 sw  = sw%>%
   mutate(month = ifelse(month == 'Sept', 'September', month),
-         num_cases = str_trim(num_cases), # remove white space
+         num_cases = stringr::str_trim(num_cases), # remove white space
          date = as.Date(paste0(year, '-', month, '-01'), format = '%Y-%B-%d'),
          month = month(date)) 
 
@@ -128,17 +176,34 @@ sw = sw%>%
   subset(num_cases > -1) # remove cases not measured yet
 sw$disease = 'HFRS'
 sw$continent = 'Europe'
+
+sw = sw%>%
+  rename(adm1_case = adm1)
+
+sw = sw%>%
+  select(-c(adm1_sw, adm1_sw2, adm1))
+
+names = read.csv('data/location_codes/conversions/sweden_adm1.csv')
+sw = left_join(sw, names, by=c('adm1_case', 'country'))
+
+# check this is 0
+nas = sw%>%
+  subset(is.na(adm1))%>%
+  select(c(adm1_case, adm1))%>%
+  distinct()
+
 write.csv(sw, 'data/human/processed/hanta/SE_hanta.csv', row.names = F)
 
 ### Germany ### 
 de_list = lapply(list.files('data/human/raw/hanta/germany', full.names = T), function(x){
-  y = read.csv(x)
-  y = y%>%
-    pivot_longer(-Week.of.notification, names_to = 'region', values_to = 'num_cases')
-  y$year = str_split_i(str_split_i(x, '/', -1), '\\.', 1)
-  return(y)
-}
+    y = read.csv(x)
+    y = y%>%
+      tidyr::pivot_longer(-Week.of.notification, names_to = 'region', values_to = 'num_cases')
+    y$year = str_split_i(str_split_i(x, '/', -1), '\\.', 1)
+    return(y)
+  }
 )
+
 de = do.call(rbind, de_list)
 de = de%>%
   mutate(num_cases = ifelse(is.na(num_cases), 0, num_cases),
@@ -149,56 +214,67 @@ de = de%>%
 
 # change region names
 de = de%>%
-  mutate(county = ifelse(grepl('County', region), str_split_i(region, '\\.County', 1),
+  mutate(adm2 = ifelse(grepl('County', region), str_split_i(region, '\\.County', 1),
                          ifelse(grepl('City', region), str_split_i(region, 'City.of.', 2),
                                 region)),
-         county = str_replace_all(county, '\\.', ' ')
+         adm2 = str_replace_all(adm2, '\\.', ' ')
   )
 
-# fixes
-de$county = ifelse(de$county == 'Sankt Wendel', 'St. Wendel', de$county)
-de$county = str_replace_all(de$county, " i d ", " in der ")
-de$county = str_replace_all(de$county, " i ", " im ")
-de$county = str_replace_all(de$county, " a d ", " an der ")
-de$county = str_replace_all(de$county, " a ", " am ")
-de$county = str_replace_all(de$county, "OPf ", "Oberpfalz")
-de$county = str_replace_all(de$county, "Greater Aachen", "Städteregion Aachen")
-de$county = str_replace_all(de$county, "Haale", "Haale Saale")
-de$county = str_replace_all(de$county, "Kempten", "Kempten  Allgäu")
-de$county = str_replace_all(de$county, "Lindau", "Lindau  Bodensee")
-de$county = str_replace_all(de$county, "Greater Hannover", "Region Hannover")
-de$county = str_replace_all(de$county, "Altenkirchen", "Altenkirchen  Westerwald ")
-de$county = str_replace_all(de$county, "Altenkirchen", "Frankenthal  Pfalz ")
-de$county = str_replace_all(de$county, "Ludwigshafen", "Ludwigshafen am Rhein")
-de$county = str_replace_all(de$county, "Stadtverband Saarbrücken", "Regionalverband Saarbrücken")
-de$county = str_replace_all(de$county, "Bitburg Prüm", "Eifelkreis Bitburg Prüm")
 
-
-sf = st_read('data/location_codes/ger_shp/DEU_adm2.shp')
+# need to get adm2 and adm1 names
+# load shapefile
+sf = st_read('~/Projects/RBDML/data/location_codes/ger_shp/DEU_adm3.shp')
 sf = sf%>%
-  mutate(county = str_replace_all(NAME_2, '-', ' '))%>%
-  select(c(NAME_1, NAME_2, county))%>%
+  rename(adm3 = NAME_3,
+         adm2 = NAME_2,
+         adm1 = NAME_1)%>%
+  select(c(adm1, adm2))%>%
+  mutate(adm2 = str_replace_all(adm2, '-', ' '))%>%
   st_drop_geometry()%>%
   distinct()
 
-sf$county = str_replace_all(sf$county, '\\(', ' ')
-sf$county = str_replace_all(sf$county, '\\)', ' ')
+# fixes
+de$adm2 = ifelse(de$adm2 == 'Sankt Wendel', 'St. Wendel', de$adm2)
+de$adm2 = str_replace_all(de$adm2, " i d ", " in der ")
+de$adm2 = str_replace_all(de$adm2, " i ", " im ")
+de$adm2 = str_replace_all(de$adm2, " a d ", " an der ")
+de$adm2 = str_replace_all(de$adm2, " a ", " am ")
+de$adm2 = str_replace_all(de$adm2, "OPf ", "Oberpfalz")
+de$adm2 = str_replace_all(de$adm2, "Greater Aachen", "Städteregion Aachen")
+de$adm2 = str_replace_all(de$adm2, "Haale", "Haale Saale")
+de$adm2 = str_replace_all(de$adm2, "Kempten", "Kempten  Allgäu")
+de$adm2 = str_replace_all(de$adm2, "Lindau", "Lindau  Bodensee")
+de$adm2 = str_replace_all(de$adm2, "Greater Hannover", "Region Hannover")
+de$adm2 = str_replace_all(de$adm2, "Altenkirchen", "Altenkirchen  Westerwald ")
+de$adm2 = str_replace_all(de$adm2, "Altenkirchen", "Frankenthal  Pfalz ")
+de$adm2 = str_replace_all(de$adm2, "Ludwigshafen", "Ludwigshafen am Rhein")
+de$adm2 = str_replace_all(de$adm2, "Stadtverband Saarbrücken", "Regionalverband Saarbrücken")
+de$adm2 = str_replace_all(de$adm2, "Bitburg Prüm", "Eifelkreis Bitburg Prüm")
+de$adm2 = str_replace_all(de$adm2, "Frankenthal  Pfalz   Westerwald ", "Frankenthal")
+de$adm2 = str_replace_all(de$adm2, "Kempten  Allgäu", "Kempten")
+de$adm2 = str_replace_all(de$adm2, "Lindau  Bodensee", "Lindau")
+
+de= de%>%
+  mutate(adm2 = ifelse(str_split_i(de$adm2, ' ', 1) == 'Berlin', 'Berlin', adm2))%>%
+  subset(adm2 != 'Unknown')
+
+# remove paranthesis
+sf$adm2 = str_replace_all(sf$adm2, '\\(', ' ')
+sf$adm2 = str_replace_all(sf$adm2, '\\)', ' ')
+sf$adm2 = str_replace_all(sf$adm2, "Halle  Saale ", "Halle")
+sf$adm2 = str_replace_all(sf$adm2, "Kempten  Allgäu ", "Kempten")
+sf$adm2 = str_replace_all(sf$adm2, "Lindau  Bodensee ", "Lindau")
+sf$adm2 = str_replace_all(sf$adm2, "Frankenthal  Pfalz ", "Frankenthal")
 
 de = left_join(de, sf)
-de = de%>%
-  mutate(NAME_1 = ifelse(grepl(county, 'Berlin'), 'Berlin', NAME_1))
 
-# which don't match - should be 0
+# should be 0
 nas = de%>%
-  subset(is.na(NAME_1))%>%
-  distinct(region, county)
-
-de = de%>%
-  rename(adm1 = NAME_1, adm2 = NAME_2)%>%
-  select(c(year, month, isoweek, adm1, adm2, num_cases))
+  select(c(adm1, adm2))%>%
+  distinct()%>%
+  subset(is.na(adm1))
 
 de$country = 'Germany'
-de$continent = 'Europe'
 
 write.csv(de, 'data/human/processed/hanta/DE_hanta.csv', row.names = F)
 
@@ -222,22 +298,16 @@ fi = fi%>%
 
 fi$continent = 'Europe'  
 fi$disease = 'HFRS'
-write.csv(fi, 'data/human/processed/hanta/FI_hanta.csv', row.names = F)
-
-# simplify Germany, Finland, and Sweden and combine
-de$disease = 'HFRS'
-de = de%>%
-  group_by(continent, country, year, month, disease)%>%
-  summarize(num_cases=sum(num_cases))
-de$year = as.numeric(de$year)
- 
-sw = sw%>%
-  group_by(continent, country, year, month, disease)%>%
-  summarize(num_cases=sum(num_cases)) 
 
 fi = fi%>%
-  group_by(continent, country, year, month, disease)%>%
-  summarize(num_cases=sum(num_cases)) 
+  rename(adm1_case = adm1)
+
+# add names
+names = read.csv('data/location_codes/conversions/finland_adm1.csv')
+
+fi = left_join(fi, names)
+
+write.csv(fi, 'data/human/processed/hanta/FI_hanta.csv', row.names = F)
 
 # checked that they each match EU numbers before this
 # maybe input test though
@@ -257,10 +327,18 @@ eu = eu%>%
 eu = eu%>%
   subset(!is.na(num_cases))
 
-eu = do.call(rbind, c(eu, de, sw, fi))
+# remove sweden
+eu = eu%>%
+  subset(country != 'Sweden')%>%
+  subset(country != 'Germany')%>%
+  subset(country != 'Finland')
+
+#eu = do.call(rbind, c(eu, de, sw, fi))
+
+eu$adm1 = 'all'
 
 # remove repeated dates
-eu = eu%>%distinct()
+#eu = eu%>%distinct()
 
 write.csv(eu, 'data/human/processed/hanta/EU_hanta.csv', row.names = F)
 
@@ -307,6 +385,9 @@ na = data.frame(year=2019,
                 disease ='HFRS')
 
 cn = rbind(cn, na)
+
+cn = read.csv('data/human/processed/hanta/CN_hanta.csv')
+cn$adm1 = 'all'
 cn$continent = 'Asia'
 write.csv(cn, 'data/human/processed/hanta/CN_hanta.csv', row.names = F)
 
@@ -330,13 +411,43 @@ eu_removals = c(eu_removals, 'EU', 'EU/EEA')
 df = df%>%
   subset(!country %in% eu_removals)
 
-# create country factor ordering
-order = df%>%
-  select(c(continent, country))%>%
-  distinct()%>%
-  arrange(continent)
+# # create country factor ordering
+# order = df%>%
+#   select(c(continent, country))%>%
+#   distinct()%>%
+#   arrange(continent)
+# 
+# df$country = factor(df$country, order$country)
 
-df$country = factor(df$country, order$country)
+df = df%>%
+  select(c(country, adm1, year, month, num_cases, continent))
+
+df$disease = 'Hantavirus'
+#-------------------- Combine lassa and hanta  -------------------- 
+las = read.csv('data/human/raw/lassa/lassafever_confirmed_admin1.csv')
+
+las = las%>%
+  rename(adm1 = adminName)%>%
+  mutate(date = as.Date(date, format="%d/%m/%Y"),
+         month = month(date))%>%
+  group_by(year, month, epiWeek, adm1)%>%
+  summarize(num_cases = sum(value))%>%
+  ungroup()
+
+las$disease = 'Lassa fever'
+las$country = 'Nigeria'
+
+las = las%>%
+  mutate(dummy_date = as.Date(paste0(year, '-', month, '-01'), format="%Y-%m-%d"))
+
+
+las = las%>%
+  group_by(year, month, adm1, disease, country)%>%
+  summarize(num_cases=sum(num_cases))
+las$continent = 'Africa'
+
+out = rbind(df, las)
+write.csv(out, 'data/processed/case_data.csv', row.names = F)
 
 #-------------------- Plot Hantavirus Data --------------------
 e1 = df%>%
@@ -382,23 +493,7 @@ fig1 = e1 + e2
 
 ggsave(plot=fig1, filename='viz/Hantavirus_Timeseries_v2.png', width=12, height=10, units="in")
 
-#-------------------- Process Lassa Data -------------------- 
-las = read.csv('data/human/raw/lassa/lassafever_confirmed_admin1.csv')
-
-las = las%>%
-  rename(adm1 = adminName)%>%
-  mutate(date = as.Date(date, format="%d/%m/%Y"),
-         month = month(date))%>%
-  group_by(year, month, epiWeek, adm1)%>%
-  summarize(num_cases = sum(value))%>%
-  ungroup()
-
-las$disease = 'Lassa fever'
-las$country = 'Nigeria'
-
-las = las%>%
-  mutate(dummy_date = as.Date(paste0(year, '-', month, '-01'), format="%Y-%m-%d"))
-
+#-------------------- Plot Lassa Data -------------------- 
 p1 = las%>%
   group_by(country, dummy_date)%>%
   summarize(num_cases = sum(num_cases, na.rm=T))%>%
@@ -435,18 +530,6 @@ p2 = las%>%
 fig = p1 + p2
 ggsave(plot=fig, filename='viz/lassa_timeseries.png', width=8, height=3, units="in", dpi=300) 
 
-#-------------------- Combine lassa and hanta  -------------------- 
-df = df%>%
-  select(c(country, adm1, year, month, num_cases, continent))
-
-df$disease = 'Hantavirus'
-las = las%>%
-  group_by(year, month, adm1, disease, country)%>%
-  summarize(num_cases=sum(num_cases))
-las$continent = 'Africa'
-
-out = rbind(df, las)
-write.csv(out, 'data/case_data.csv', row.names = F)
 
 #-------------------- Add geo information and create summary dataset  -------------------- 
 df = read.csv('data/case_data.csv')
