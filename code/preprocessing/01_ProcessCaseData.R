@@ -395,9 +395,13 @@ write.csv(cn, 'data/human/processed/hanta/CN_hanta.csv', row.names = F)
 df = do.call(bind_rows, 
              lapply(list.files('data/human/processed/hanta', full.names = T), 
                     read.csv))
-
+# fix germany
 df = df%>%
-  mutate(dummy_date = as.Date(paste0(year, '-', month, '-01'), format="%Y-%m-%d"))
+  mutate(continent = ifelse(country == 'Germany', 'Europe', continent))
+df$adm1 = ifelse(df$adm1 == 'Baden-Württemberg', 'Baden-Wuerttemberg', df$adm1)
+df$adm1 = ifelse(df$adm1 == 'Thüringen', 'Thueringen', df$adm1)
+df$adm1 = ifelse(df$adm1 == 'Nuble', 'Biobio', df$adm1)
+df$continent = ifelse(df$country == 'Germany', 'Europe', df$continent)
 
 eu_removals = df%>%
   subset(continent == 'Europe')%>%
@@ -437,8 +441,8 @@ las = las%>%
 las$disease = 'Lassa fever'
 las$country = 'Nigeria'
 
-las = las%>%
-  mutate(dummy_date = as.Date(paste0(year, '-', month, '-01'), format="%Y-%m-%d"))
+# las = las%>%
+#   mutate(dummy_date = as.Date(paste0(year, '-', month, '-01'), format="%Y-%m-%d"))
 
 
 las = las%>%
@@ -446,93 +450,20 @@ las = las%>%
   summarize(num_cases=sum(num_cases))
 las$continent = 'Africa'
 
+# combine lassa and hantavirus
 out = rbind(df, las)
+
+## adding in Bolivia ##
+bo = read.csv('data/human/raw/hanta/Bolivia_Hanta_BHF.csv')
+bo$adm1 = stringr::str_to_title(bo$adm1)
+bo$disease = stringr::str_to_title(bo$disease)
+bo$disease = stringr::str_trim(bo$disease)
+
+out = rbind(out, bo)
+
 write.csv(out, 'data/processed/case_data.csv', row.names = F)
-
-#-------------------- Plot Hantavirus Data --------------------
-e1 = df%>%
-  #subset(continent == 'Europe')%>%
-  group_by(continent, country, dummy_date)%>%
-  summarize(num_cases = sum(num_cases))%>%
-  ggplot()+
-  geom_line(aes(dummy_date, num_cases, col=continent))+
-  scale_x_date(name="Date",
-               breaks = seq(as.Date('1995-01-01'), as.Date('2025-01-01'), by="5 years"),
-               date_labels="%b-%Y",
-               date_minor_breaks = 'year')+
-  facet_grid(country~., scales="free_y")+
-  scale_color_discrete(name='Region')+
-  labs(y = 'Total Cases')+
-  theme_bw()+
-  theme(panel.grid.major.y = element_blank(),
-        panel.grid.minor.y = element_blank(),
-        strip.background = element_rect(colour="black", fill="white"),
-        legend.position="bottom")
-
-e2 = df%>%
-  #subset(continent == 'Europe')%>%
-  mutate(dummy_date2 = as.Date(paste0(month, '-01-2000'), format="%m-%d-%Y"))%>%
-  group_by(country, year, month, dummy_date2)%>%
-  summarize(num_cases = sum(num_cases, na.rm=T))%>%
-  ggplot()+
-  geom_line(aes(dummy_date2, num_cases, col=year, group=year))+
-  scale_colour_viridis_c(name = 'Year')+
-  scale_x_date(name="Month", date_labels="%b",
-               date_minor_breaks = 'month')+
-  #scale_color_discrete(name="Year")+
-  facet_grid(country~., scales="free_y")+
-  labs(y = 'Total Cases')+
-  theme_bw()+
-  theme(panel.grid.major.y = element_blank(),
-        panel.grid.minor.y = element_blank(),
-        strip.background = element_rect(colour="black", fill="white"),
-        legend.position="bottom")
-
-
-fig1 = e1 + e2 
-
-ggsave(plot=fig1, filename='viz/Hantavirus_Timeseries_v2.png', width=12, height=10, units="in")
-
-#-------------------- Plot Lassa Data -------------------- 
-p1 = las%>%
-  group_by(country, dummy_date)%>%
-  summarize(num_cases = sum(num_cases, na.rm=T))%>%
-  ggplot()+
-  geom_line(aes(dummy_date, num_cases))+
-  # scale_x_date(name="month",
-  #              breaks = "1 year",
-  #              date_labels="%b-%Y",
-  #              date_minor_breaks = '6 months')+
-  # facet_grid(country~., scales="free_y")+
-  labs(x = 'Year', y = 'Total Cases')+
-  theme_bw()+
-  theme(panel.grid.major.y = element_blank(),
-        panel.grid.minor.y = element_blank(),
-        strip.background = element_rect(colour="black", fill="white"))
-
-p2 = las%>%
-  subset(!is.na(year))%>%
-  mutate(dummy_date2 = as.Date(paste0(month, '-01-2000'), format="%m-%d-%Y"))%>%
-  group_by(country, year, month, dummy_date2)%>%
-  summarize(num_cases = sum(num_cases, na.rm=T))%>%
-  ggplot()+
-  geom_line(aes(dummy_date2, num_cases, col=year, group=year))+
-  scale_x_date(name="Month", date_labels="%b",
-               date_minor_breaks = 'month')+
-  scale_colour_viridis_c(name = 'Year', breaks=seq(2012, 2022, by=2))+
-  facet_grid(country~., scales="free_y")+
-  labs(y = 'Total Cases')+
-  theme_bw()+
-  theme(panel.grid.major.y = element_blank(),
-        panel.grid.minor.y = element_blank(),
-        strip.background = element_rect(colour="black", fill="white"))
-
-fig = p1 + p2
-ggsave(plot=fig, filename='viz/lassa_timeseries.png', width=8, height=3, units="in", dpi=300) 
-
-
-#-------------------- Add geo information and create summary dataset  -------------------- 
-df = read.csv('data/case_data.csv')
+#-------------------- Create summary dataset for climate data -------------------- 
+df = read.csv('data/processed/case_data.csv')
 
 df_sum = df%>%
   group_by(country, year, month)%>%
@@ -544,18 +475,4 @@ df_sum = df%>%
             total_cases = sum(monthcases,na.rm=T))%>%
   mutate(country = ifelse(country == 'USA', 'United States of America', country))
 
-write.csv(df_sum, 'data/human/processed/country_list.csv', row.names = F)
-
-earth = st_read('data/location_codes/world-administrative-boundaries.geojson')
-earth = earth%>%
-  select(c(continent, name, iso3, geo_point_2d, geometry))%>%
-  rename(country = name)
-
-# add shapefile of country
-df_sum = df_sum%>%
-  left_join(earth, by='country')
-
-st_write(df_sum, 'data/location_codes/countries.geojson')
-
-
-
+write.csv(df_sum, 'data/processed/country_list.csv', row.names = F)

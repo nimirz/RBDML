@@ -6,18 +6,10 @@ library(ggplot2)
 library(patchwork)
 
 #-------------------- Load datasets --------------------
-df = read.csv('~/Projects/RBDML/data/processed/case_data.csv')
-clim = read.csv('~/Projects/RBDML/data/processed/climate_data.csv')
+df = read.csv('data/processed/case_data.csv')
+clim = read.csv('data/processed/climate_data.csv')
 
-
-
-### CHECK FOR MATCHING NAMES ###
-# fix germany
-df$adm1 = ifelse(df$adm1 == 'Baden-Württemberg', 'Baden-Wuerttemberg', df$adm1)
-df$adm1 = ifelse(df$adm1 == 'Thüringen', 'Thueringen', df$adm1)
-df$adm1 = ifelse(df$adm1 == 'Nuble', 'Biobio', df$adm1)
-df$continent = ifelse(df$country == 'Germany', 'Europe', df$continent)
-
+### CHECK FOR MATCHING NAMES ###]
 # check for matching adm1 names
 df_adm1 = df%>%
   select(c('country', 'adm1'))%>%
@@ -51,19 +43,23 @@ order = df%>%
 
 df$country = factor(df$country, order$country)
 
+df = df%>%
+  mutate(viral_family = ifelse(disease == 'Hantavirus', 'Hantaviridae', 'Arenaviridae')) 
+
 e1 = df%>%
   #subset(continent == 'Europe')%>%
   #subset(disease == 'Hantavirus')%>%
-  group_by(continent, country, dummy_date)%>%
+  group_by(continent, country, dummy_date, viral_family)%>%
   summarize(num_cases = sum(num_cases))%>%
   ggplot()+
-  geom_line(aes(dummy_date, num_cases, col=continent))+
+  geom_line(aes(dummy_date, num_cases, linetype=viral_family, col=continent))+
   scale_x_date(name="Date",
                breaks = seq(as.Date('1995-01-01'), as.Date('2025-01-01'), by="5 years"),
                date_labels="%b-%Y",
                date_minor_breaks = 'year')+
   facet_grid(country~., scales="free_y")+
   scale_color_discrete(name='Region')+
+  scale_linetype(c('longdash', 'solid'))+
   labs(y = 'Total Cases')+
   theme_bw()+
   theme(panel.grid.major.y = element_blank(),
