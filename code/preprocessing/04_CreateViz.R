@@ -52,14 +52,13 @@ e1 = df%>%
   group_by(continent, country, dummy_date, viral_family)%>%
   summarize(num_cases = sum(num_cases))%>%
   ggplot()+
-  geom_line(aes(dummy_date, num_cases, linetype=viral_family, col=continent))+
+  geom_line(aes(dummy_date, num_cases, col=continent))+
   scale_x_date(name="Date",
                breaks = seq(as.Date('1995-01-01'), as.Date('2025-01-01'), by="5 years"),
                date_labels="%b-%Y",
                date_minor_breaks = 'year')+
   facet_grid(country~., scales="free_y")+
   scale_color_discrete(name='Region')+
-  scale_linetype(c('longdash', 'solid'))+
   labs(y = 'Total Cases')+
   theme_bw()+
   theme(panel.grid.major.y = element_blank(),
