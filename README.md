@@ -1,13 +1,12 @@
 # Rodent-borne disease Machine Learning
 
-Using host ecology to learn predictors of viral spillover. 
-
 ## Project Overview
 Many rodent-borne diseases show seasonal patterns of infection, likely driven by climate factors impacting the population dynamics of the rodent host or hosts. Using machine learning approaches, we plan to classify seasonal curves in human infection of rodent-borne diseases to see how predict years of high or low outbreak potential.
 
 Diseases Included:
 - Hantavirus (HPS and HFRS)
-- Lassa fever 
+- Lassa fever
+- Bolivian hemorrhagic fever
 
 ### Datasets
 1. Human Case data
@@ -31,8 +30,3 @@ model/ directory
 
 _Postprocessing_
 
-
-### To-Do
-- [ ] streamline GEE code 
-- [ ] add another disease
-- [ ] create main preprocessing script
