@@ -466,9 +466,9 @@ write.csv(out, 'data/processed/case_data.csv', row.names = F)
 df = read.csv('data/processed/case_data.csv')
 
 df_sum = df%>%
-  group_by(country, year, month)%>%
-  mutate(monthcases = sum(num_cases, na.rm=T))%>%
-  group_by(country)%>%
+  group_by(country, year, month, disease)%>%
+  summarize(monthcases = sum(num_cases, na.rm=T))%>%
+  group_by(country, disease)%>%
   summarize(minyear = min(year),
             maxyear = max(year),
             max_monthly_cases = max(monthcases, na.rm=T),

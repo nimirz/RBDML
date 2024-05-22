@@ -46,9 +46,9 @@ df$country = factor(df$country, order$country)
 df = df%>%
   mutate(viral_family = ifelse(disease == 'Hantavirus', 'Hantaviridae', 'Arenaviridae')) 
 
+cols = c("#FAB255FF", "#0F7BA2FF", "#43B284FF", "#DD5129FF")
+
 e1 = df%>%
-  #subset(continent == 'Europe')%>%
-  #subset(disease == 'Hantavirus')%>%
   group_by(continent, country, dummy_date, viral_family)%>%
   summarize(num_cases = sum(num_cases))%>%
   ggplot()+
@@ -58,7 +58,7 @@ e1 = df%>%
                date_labels="%b-%Y",
                date_minor_breaks = 'year')+
   facet_grid(country~., scales="free_y")+
-  scale_color_discrete(name='Region')+
+  scale_color_manual(name='Region', values=(cols))+
   labs(y = 'Total Cases')+
   theme_bw()+
   theme(panel.grid.major.y = element_blank(),
@@ -69,11 +69,12 @@ e1 = df%>%
 e2 = df%>%
   #subset(continent == 'Europe')%>%
   mutate(dummy_date2 = as.Date(paste0(month, '-01-2000'), format="%m-%d-%Y"))%>%
-  group_by(country, year, month, dummy_date2)%>%
+  group_by(continent, country, year, month, dummy_date2)%>%
   summarize(num_cases = sum(num_cases, na.rm=T))%>%
   ggplot()+
-  geom_line(aes(dummy_date2, num_cases, col=year, group=year))+
-  scale_colour_viridis_c(name = 'Year')+
+  geom_line(aes(dummy_date2, num_cases, col=continent, group=year))+
+  scale_color_manual(name='Region', values=(cols))+
+  #scale_colour_viridis_c(name = 'Year')+
   scale_x_date(name="Month", date_labels="%b",
                date_minor_breaks = 'month')+
   #scale_color_discrete(name="Year")+
@@ -83,12 +84,12 @@ e2 = df%>%
   theme(panel.grid.major.y = element_blank(),
         panel.grid.minor.y = element_blank(),
         strip.background = element_rect(colour="black", fill="white"),
-        legend.position="bottom")
+        legend.position="none")
 
 
-fig1 = e1 + e2 
+fig1 = e1 + e2 + plot_layout(guides="collect") & theme(legend.position = 'bottom')
 
-#ggsave(plot=fig1, filename='viz/Hantavirus_Timeseries_v2.png', width=12, height=10, units="in")
+ggsave(plot=fig1, filename='viz/Full_Timeseries_v2.png', width=12, height=10, units="in", dpi=1200)
 
 
 #-------------------- Plot climate data -------------------- 
